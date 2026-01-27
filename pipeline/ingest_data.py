@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
 import pandas as pd
 from sqlalchemy import create_engine
 from tqdm.auto import tqdm
-
-
+import click
+import requests
 
 dtype = {
     "VendorID": "Int64",
@@ -34,41 +31,58 @@ parse_dates = [
     "tpep_dropoff_datetime"
 ]
 
-def run():
-    pg_user = "root"
-    pg_pass = "root"
-    pg_host = "localhost"
-    pg_port = 5432
-    pg_db = "ny_taxi"
+@click.command()
+@click.option('--pg-user', default='root', help='PostgreSQL username')
+@click.option('--pg-pass', default='root', help='PostgreSQL password')
+@click.option('--pg-host', default='localhost', help='PostgreSQL host')
+@click.option('--pg-port', default='5432', help='PostgreSQL port')
+@click.option('--pg-db', default='ny_taxi', help='PostgreSQL database name')
+@click.option('--trip-url', default='https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2025-11.parquet', help='URL of the Parquet trip data')
+@click.option('--zones-url', default='https://github.com/DataTalksClub/nyc-tlc-data/releases/download/misc/taxi_zone_lookup.csv', help='URL of the taxi zones CSV')
+@click.option('--chunksize', default=100000, type=int, help='Chunk size for ingestion')
+@click.option('--trip-table', default='green_taxi_data', help='Target table name for trip data')
+@click.option('--zones-table', default='taxi_zones', help='Target table name for zones')
+def run(pg_user, pg_pass, pg_host, pg_port, pg_db, trip_url, zones_url, chunksize, trip_table, zones_table):
 
-    year = 2021
-    month = 1
+    engine = create_engine(f'postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
 
-    target_table = 'yellow_taxi_data'
-    chunksize = 100000
+    # --- Download and ingest Parquet trip data ---
+    local_trip_file = 'temp_trip.parquet'
+    print(f"Downloading trip data from {trip_url} ...")
+    r = requests.get(trip_url, stream=True)
+    r.raise_for_status()
+    with open(local_trip_file, 'wb') as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            f.write(chunk)
+    print("Trip data download complete.")
 
+    df_trip = pd.read_parquet(local_trip_file, engine='pyarrow')
+    total_rows = len(df_trip)
+    print(f"Total trip rows: {total_rows}")
 
-    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow'
-    url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
-
-    engine = create_engine('postgresql://root:root@localhost:5432/ny_taxi')
-    df_iter = pd.read_csv(
-        url,
-        dtype=dtype,
-        parse_dates=parse_dates,
-        iterator=True,
-        chunksize=chunksize,
-    )
     first = True
-    for df_chunk in tqdm(df_iter):
+    for start in tqdm(range(0, total_rows, chunksize)):
+        end = min(start + chunksize, total_rows)
+        df_chunk = df_trip.iloc[start:end]
         if first:
-            df_chunk.head(0).to_sql(name=target_table, con=engine, if_exists='replace')
+            df_chunk.head(0).to_sql(name=trip_table, con=engine, if_exists='replace')
             first = False
-        df_chunk.to_sql(name=target_table, con=engine, if_exists='append')
+        df_chunk.to_sql(name=trip_table, con=engine, if_exists='append')
+    print(f"Trip data ingested into table '{trip_table}'.")
+
+    # --- Download and ingest zones CSV ---
+    local_zones_file = 'taxi_zone_lookup.csv'
+    print(f"Downloading zones data from {zones_url} ...")
+    r = requests.get(zones_url)
+    r.raise_for_status()
+    with open(local_zones_file, 'wb') as f:
+        f.write(r.content)
+    print("Zones download complete.")
+
+    df_zones = pd.read_csv(local_zones_file)
+    df_zones.to_sql(name=zones_table, con=engine, if_exists='replace', index=False)
+    print(f"Zones data ingested into table '{zones_table}'.")
+
 
 if __name__ == '__main__':
     run()
-
-
-
-
