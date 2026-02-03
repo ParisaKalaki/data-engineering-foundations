@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: raw_data
+    description: "Raw data extracted from NY Taxi datasets"
+    database: terraform-demo-485708
+    schema: zoomcamp
+    tables:
+      - name: yellow_data
+      - name: green_data
