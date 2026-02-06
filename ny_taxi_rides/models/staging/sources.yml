@@ -6,5 +6,6 @@ sources:
     database: terraform-demo-485708
     schema: zoomcamp
     tables:
-      - name: yellow_data
-      - name: green_data
+      - name: yellow_tripdata
+      - name: green_tripdata
+      - name: fhv_tripdata
