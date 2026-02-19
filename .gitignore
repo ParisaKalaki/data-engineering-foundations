@@ -211,3 +211,11 @@ __marimo__/
 
 # .csv files
 *.csv
+
+.bruin.yml
+logs/runs
+logs/*.log
+*.py[cod]
+
+# vscode
+.vscode/
