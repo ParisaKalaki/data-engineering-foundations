@@ -219,3 +219,6 @@ logs/*.log
 
 # vscode
 .vscode/
+
+# ipnyb checkpoints
+.ipynb_checkpoints/
