@@ -9,6 +9,7 @@ description = "Data engineering foundations project"
 requires-python = ">=3.9"
 dependencies = [
     "pandas>=1.3.0",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [project.optional-dependencies]
@@ -18,3 +19,8 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["pipeline"]
+
+[tool.uv.workspace]
+members = [
+    "week_7_streaming",
+]
